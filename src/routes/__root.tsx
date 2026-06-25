@@ -43,8 +43,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "MahaBank — AI-Powered Digital Banking" },
-      { name: "description", content: "Secure AI-powered digital banking with accounts, transfers, deposits and more." },
+      { title: "Bank of Maharashtra — Digital Banking" },
+      { name: "description", content: "Bank of Maharashtra demo digital banking with accounts, statements, transfers, deposits, profile and AI-powered tools." },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
