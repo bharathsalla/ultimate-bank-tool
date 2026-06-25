@@ -11,9 +11,8 @@ import {
 } from "@/lib/bank-data";
 
 export const Route = createFileRoute("/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — MahaBank" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — Bank of Maharashtra" }] }),
   component: Dashboard,
-  ssr: false,
 });
 
 type Tab = "overview" | "accounts" | "transfers" | "deposits" | "loans" | "cards" | "statements" | "profile" | "settings";
