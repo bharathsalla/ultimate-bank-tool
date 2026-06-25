@@ -2,12 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Shield, Sparkles, Smartphone, Lock, ArrowRight, Building2, CreditCard, PiggyBank, TrendingUp } from "lucide-react";
 import { login } from "@/lib/auth-store";
+import bomLogo from "@/assets/bom-logo.png";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MahaBank — AI-Powered Digital Banking" },
-      { name: "description", content: "Experience next-gen banking with AI-driven insights, instant transfers, smart deposits and 24/7 secure access." },
+      { title: "Bank of Maharashtra — One Family One Bank" },
+      { name: "description", content: "Official net banking portal of Bank of Maharashtra — accounts, transfers, deposits, loans, cards and AI-powered insights." },
     ],
   }),
   component: Landing,
@@ -40,9 +41,9 @@ function Landing() {
       <header className="border-b bg-card">
         <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="size-11 rounded-full bg-primary text-primary-foreground grid place-items-center font-display font-black text-xl shadow-md">M</div>
+            <img src={bomLogo} alt="Bank of Maharashtra" className="size-12 object-contain" />
             <div>
-              <div className="font-display text-xl font-black text-primary leading-none">MahaBank</div>
+              <div className="font-display text-xl font-black text-primary leading-none">Bank of Maharashtra</div>
               <div className="text-[10px] text-muted-foreground tracking-widest">ONE FAMILY ONE BANK</div>
             </div>
           </div>
@@ -135,7 +136,7 @@ function Landing() {
       </section>
 
       <footer className="bg-primary text-primary-foreground/80 text-xs py-6 text-center">
-        © {new Date().getFullYear()} MahaBank • Demo banking project • All rights reserved
+        © {new Date().getFullYear()} Bank of Maharashtra • Demo project • All rights reserved
       </footer>
 
       {/* Login modal trigger */}

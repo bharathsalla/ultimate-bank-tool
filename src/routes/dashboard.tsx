@@ -9,11 +9,11 @@ import {
   ACCOUNT_BALANCE, ACCOUNT_HOLDER, ACCOUNT_NUMBER, IFSC, BRANCH,
   formatINR, generateTransactions, downloadCSV, type Txn
 } from "@/lib/bank-data";
+import bomLogo from "@/assets/bom-logo.png";
 
 export const Route = createFileRoute("/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — MahaBank" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — Bank of Maharashtra" }] }),
   component: Dashboard,
-  ssr: false,
 });
 
 type Tab = "overview" | "accounts" | "transfers" | "deposits" | "loans" | "cards" | "statements" | "profile" | "settings";
@@ -46,9 +46,9 @@ function Dashboard() {
       <header className="bg-primary text-primary-foreground sticky top-0 z-30 shadow">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="size-9 rounded-full bg-gold text-gold-foreground grid place-items-center font-display font-black">M</div>
+            <img src={bomLogo} alt="Bank of Maharashtra" className="size-10 object-contain bg-white rounded-full p-0.5" />
             <div>
-              <div className="font-display font-bold text-lg leading-none">MahaBank</div>
+              <div className="font-display font-bold text-lg leading-none">Bank of Maharashtra</div>
               <div className="text-[10px] opacity-80">Net Banking</div>
             </div>
           </div>
