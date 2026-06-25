@@ -17,6 +17,7 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 type Tab = "overview" | "accounts" | "transfers" | "deposits" | "loans" | "cards" | "statements" | "profile" | "settings";
+type StatementType = "all" | "credit" | "debit";
 
 const NAV: { id: Tab; label: string; icon: any }[] = [
   { id: "overview", label: "Dashboard", icon: LayoutDashboard },
@@ -121,7 +122,7 @@ function Overview({ onJump }: { onJump: (t: Tab) => void }) {
       </div>
 
       {/* Balance card */}
-      <div className="rounded-2xl bg-gradient-to-br from-primary via-primary to-[oklch(0.30_0.12_25)] text-primary-foreground p-6 md:p-8 shadow-xl relative overflow-hidden">
+      <div className="rounded-2xl bg-gradient-to-br from-primary via-primary to-[oklch(0.38_0.13_250)] text-primary-foreground p-6 md:p-8 shadow-xl relative overflow-hidden">
         <div className="absolute -right-10 -top-10 size-48 rounded-full bg-gold/20 blur-2xl" />
         <div className="relative flex justify-between items-start">
           <div>
@@ -136,7 +137,7 @@ function Overview({ onJump }: { onJump: (t: Tab) => void }) {
           </div>
           <div className="hidden md:block bg-white/10 backdrop-blur rounded-lg px-4 py-3 text-xs">
             <div className="flex items-center gap-1 text-gold"><Sparkles className="size-3.5"/> AI Tip</div>
-            <div className="opacity-90 mt-1 max-w-[200px]">Move ₹50,000 to FD<br/>and earn ₹3,250 more/yr</div>
+            <div className="opacity-90 mt-1 max-w-[200px]">Split monthly credits<br/>into smart savings goals</div>
           </div>
         </div>
         <div className="relative mt-6 flex flex-wrap gap-2">
@@ -184,6 +185,7 @@ function Overview({ onJump }: { onJump: (t: Tab) => void }) {
 function Accounts() {
   const [showStatement, setShowStatement] = useState(false);
   const [period, setPeriod] = useState<"3m"|"6m"|"1y"|"custom">("6m");
+  const [txnType, setTxnType] = useState<StatementType>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [results, setResults] = useState<Txn[] | null>(null);
@@ -193,12 +195,19 @@ function Accounts() {
     let f: Date, t: Date = new Date();
     if (period === "custom") {
       if (!from || !to) return alert("Select both From & To dates");
-      f = new Date(from); t = new Date(to);
+      f = new Date(from); f.setHours(0, 0, 0, 0);
+      t = new Date(to); t.setHours(23, 59, 59, 999);
+      if (f > t) return alert("From date cannot be after To date");
     } else {
       const months = period === "3m" ? 3 : period === "6m" ? 6 : 12;
-      f = new Date(); f.setMonth(f.getMonth() - months);
+      f = new Date(); f.setMonth(f.getMonth() - months); f.setHours(0, 0, 0, 0);
     }
-    setResults(allTxns.filter(x => { const d = new Date(x.date); return d >= f && d <= t; }));
+    setResults(allTxns.filter(x => {
+      const d = new Date(x.date);
+      const typeMatch = txnType === "all" || x.type === txnType;
+      const depositLimitMatch = x.type !== "credit" || x.amount <= 30000;
+      return d >= f && d <= t && typeMatch && depositLimitMatch;
+    }));
     setShowStatement(true);
   };
 
@@ -211,7 +220,7 @@ function Accounts() {
 
       {/* Account card */}
       <div className="rounded-2xl bg-card border shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-primary to-[oklch(0.32_0.12_25)] text-primary-foreground p-6">
+        <div className="bg-gradient-to-r from-primary to-[oklch(0.38_0.13_250)] text-primary-foreground p-6">
           <div className="flex justify-between items-start flex-wrap gap-4">
             <div>
               <div className="text-xs opacity-80 uppercase tracking-wider">Savings Account</div>
@@ -224,7 +233,7 @@ function Accounts() {
               <div className="font-display text-4xl font-black flex items-center gap-1 justify-end mt-1">
                 <IndianRupee className="size-7" />{new Intl.NumberFormat("en-IN").format(ACCOUNT_BALANCE)}
               </div>
-              <div className="text-xs opacity-80 mt-1">₹ Fifty Lakh Two Hundred Thirty Five Only</div>
+              <div className="text-xs opacity-80 mt-1">₹ Forty Four Lakh Fifty Five Thousand Two Hundred Twelve Only</div>
             </div>
           </div>
         </div>
@@ -250,7 +259,7 @@ function Accounts() {
           <h2 className="font-display text-lg font-bold">Account Statement</h2>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-3 gap-6">
           <div>
             <label className="text-xs font-semibold text-foreground/70">Select Period</label>
             <select value={period} onChange={e => setPeriod(e.target.value as any)}
@@ -260,6 +269,17 @@ function Accounts() {
               <option value="1y">Last 1 Year</option>
               <option value="custom">Custom Date Range</option>
             </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-foreground/70">Transaction Filter</label>
+            <select value={txnType} onChange={e => setTxnType(e.target.value as StatementType)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-primary">
+              <option value="all">All Transactions</option>
+              <option value="credit">Credits / Deposits only</option>
+              <option value="debit">Debits only</option>
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">Credits above ₹30,000 are excluded.</p>
           </div>
 
           {period === "custom" && (
@@ -290,7 +310,7 @@ function Accounts() {
           <div className="p-5 border-b flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-display text-lg font-bold">Statement — {results.length} transactions</h3>
-              <p className="text-xs text-muted-foreground">{period==="custom" ? `${from} to ${to}` : `Last ${period === "3m" ? "3 months" : period === "6m" ? "6 months" : "1 year"}`}</p>
+              <p className="text-xs text-muted-foreground">{period==="custom" ? `${from} to ${to}` : `Last ${period === "3m" ? "3 months" : period === "6m" ? "6 months" : "1 year"}`} • {txnType === "all" ? "All types" : txnType === "credit" ? "Credits only" : "Debits only"} • no credit above ₹30,000</p>
             </div>
             <button onClick={() => downloadCSV(results, `MahaBank-Statement-${Date.now()}.csv`)}
               className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-gold-foreground hover:opacity-90 flex items-center gap-2">
@@ -360,7 +380,7 @@ function Deposits() {
 function Profile() {
   const fields = [
     ["Full Name", ACCOUNT_HOLDER], ["Customer ID", "MAHA12345"],
-    ["Email", "rohan.deshmukh@example.com"], ["Mobile", "+91 98765 43210"],
+    ["Email", "salla.bharath@example.com"], ["Mobile", "+91 98765 43210"],
     ["PAN", "ABCDE1234F"], ["Aadhaar", "XXXX XXXX 4521"],
     ["Address", "Flat 402, Sahyadri Heights, Pune 411038"], ["Branch", BRANCH],
   ];
@@ -369,7 +389,7 @@ function Profile() {
       <h1 className="font-display text-2xl md:text-3xl font-bold text-primary">My Profile</h1>
       <div className="rounded-xl bg-card border p-6">
         <div className="flex items-center gap-4 pb-6 border-b">
-          <div className="size-20 rounded-full bg-primary text-primary-foreground grid place-items-center font-display text-2xl font-black">RD</div>
+          <div className="size-20 rounded-full bg-primary text-primary-foreground grid place-items-center font-display text-2xl font-black">SB</div>
           <div>
             <div className="font-display text-xl font-bold">{ACCOUNT_HOLDER}</div>
             <div className="text-sm text-muted-foreground">Premium Customer • Since 2018</div>
