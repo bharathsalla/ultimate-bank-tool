@@ -12,4 +12,7 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {                          // 👈 ADD THIS
+    base: '/ultimate-bank-tool/',  // 👈 ADD THIS
+  },                               // 👈 ADD THIS
 });
