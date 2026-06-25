@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Accessibility, ArrowRight, Building2, Calculator, CreditCard, Download, Landmark, Lock, Menu, Search, ShieldCheck, Smartphone, Volume2, X } from "lucide-react";
 import { login } from "@/lib/auth-store";
-import bomLogo from "@/assets/bom-official-logo.png.asset.json";
+import bomLogo from "@/assets/bom-official-logo.png";
 import heroBg from "@/assets/bom-hero-valley.jpg";
 
 export const Route = createFileRoute("/")({
@@ -73,7 +73,7 @@ function Landing() {
         </div>
         <div className="bg-[oklch(0.13_0.02_250)]/82 backdrop-blur">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2">
-            <img src={bomLogo.url} alt="Bank of Maharashtra logo" className="h-12 w-auto object-contain" />
+            <img src={bomLogo} alt="Bank of Maharashtra logo" className="h-12 w-auto object-contain" />
             <nav className="hidden items-center gap-7 text-[13px] lg:flex">
               {primaryNav.map((item) => <a key={item} href="#services" className="hover:text-[oklch(0.78_0.14_80)]">{item}</a>)}
             </nav>
