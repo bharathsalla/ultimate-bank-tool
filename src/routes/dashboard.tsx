@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, PiggyBank, CreditCard, FileText,
-  User, Settings, LogOut, Bell, Eye, EyeOff, Download, Search, Sparkles, Building2, TrendingUp, Shield, Receipt, IndianRupee, Upload, FileDown
+  User, Settings, LogOut, Bell, Eye, EyeOff, Download, Search, Sparkles, Building2, TrendingUp, Shield, Receipt, IndianRupee, Upload, FileDown, Menu, X
 } from "lucide-react";
 import { isAuthed, logout } from "@/lib/auth-store";
 import {
@@ -37,33 +37,42 @@ const cardClass = "rounded-xl bg-white border border-[#1463b1]/20 hover:border-[
 function Dashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthed()) navigate({ to: "/" });
   }, [navigate]);
 
   const handleLogout = () => { logout(); navigate({ to: "/" }); };
+  const pickTab = (t: Tab) => { setTab(t); setDrawerOpen(false); };
 
   return (
-    <div className="min-h-screen bg-muted/40">
+    <div className="min-h-screen bg-muted/40 overflow-x-hidden">
       {/* Top header — WHITE */}
-      <header className="bg-white text-neutral-800 sticky top-0 z-30 shadow-sm border-b border-[#1463b1]/20">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={bomLogo} alt="Bank of Maharashtra" className="h-10 w-auto object-contain" />
-            <div>
-              <div className="font-display font-bold text-lg leading-none" style={{ color: BRAND }}>Bank of Maharashtra</div>
-              <div className="text-[10px] text-neutral-500">Net Banking</div>
+      <header className="bg-white text-neutral-800 sticky top-0 z-40 shadow-sm border-b border-[#1463b1]/20">
+        <div className="px-3 sm:px-4 py-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="md:hidden p-2 -ml-2 rounded-md hover:bg-neutral-100 shrink-0"
+              aria-label="Open menu"
+            >
+              <Menu className="size-5" />
+            </button>
+            <img src={bomLogo} alt="Bank of Maharashtra" className="h-8 sm:h-10 w-auto object-contain shrink-0" />
+            <div className="min-w-0">
+              <div className="font-display font-bold text-sm sm:text-lg leading-none truncate" style={{ color: BRAND }}>Bank of Maharashtra</div>
+              <div className="text-[10px] text-neutral-500 hidden sm:block">Net Banking</div>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-2 bg-neutral-100 rounded-md px-3 py-1.5 w-80 border border-neutral-200">
-            <Search className="size-4 text-neutral-500" />
-            <input placeholder="Search payee, transaction, service..." className="bg-transparent text-sm outline-none placeholder:text-neutral-400 w-full" />
+          <div className="hidden lg:flex items-center gap-2 bg-neutral-100 rounded-md px-3 py-1.5 border border-neutral-200 min-w-0">
+            <Search className="size-4 text-neutral-500 shrink-0" />
+            <input placeholder="Search payee, transaction, service..." className="bg-transparent text-sm outline-none placeholder:text-neutral-400 w-full min-w-0" />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             <button className="relative p-2 hover:bg-neutral-100 rounded-md"><Bell className="size-5" /><span className="absolute top-1.5 right-1.5 size-2 bg-amber-500 rounded-full" /></button>
-            <div className="hidden sm:flex items-center gap-2 text-sm">
-              <div className="size-8 rounded-full text-white grid place-items-center font-bold text-xs" style={{ background: BRAND }}>{ACCOUNT_HOLDER.split(" ").map(n=>n[0]).join("")}</div>
+            <div className="hidden md:flex items-center gap-2 text-sm">
+              <div className="size-8 rounded-full text-white grid place-items-center font-bold text-xs shrink-0" style={{ background: BRAND }}>{ACCOUNT_HOLDER.split(" ").map(n=>n[0]).join("")}</div>
               <div className="leading-tight"><div className="font-semibold">{ACCOUNT_HOLDER}</div><div className="text-[10px] text-neutral-500">Cust ID: MAHA12345</div></div>
             </div>
             <button onClick={handleLogout} className="p-2 hover:bg-neutral-100 rounded-md" title="Logout"><LogOut className="size-5" /></button>
@@ -71,8 +80,32 @@ function Dashboard() {
         </div>
       </header>
 
+      {/* Mobile drawer */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-[#1463b1]/20">
+              <div className="flex items-center gap-2 min-w-0">
+                <img src={bomLogo} alt="" className="h-8 w-auto shrink-0" />
+                <span className="font-display font-bold text-sm truncate" style={{ color: BRAND }}>Bank of Maharashtra</span>
+              </div>
+              <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded hover:bg-neutral-100"><X className="size-5" /></button>
+            </div>
+            <nav className="p-3 space-y-1 overflow-y-auto">
+              {NAV.map(n => (
+                <button key={n.id} onClick={() => pickTab(n.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium ${tab === n.id ? "bg-[#1463b1]/10 text-[#1463b1]" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                  <n.icon className="size-4" /> {n.label}
+                </button>
+              ))}
+            </nav>
+          </aside>
+        </div>
+      )}
+
       <div className="flex">
-        {/* Sidebar */}
+        {/* Sidebar (desktop) */}
         <aside className="hidden md:block w-60 shrink-0 bg-white border-r border-[#1463b1]/20 min-h-[calc(100vh-60px)] sticky top-[60px] self-start">
           <nav className="p-3 space-y-1">
             {NAV.map(n => (
@@ -89,17 +122,9 @@ function Dashboard() {
           </div>
         </aside>
 
-        {/* Mobile tab bar */}
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-[#1463b1]/20 flex justify-around py-2">
-          {NAV.slice(0, 5).map(n => (
-            <button key={n.id} onClick={() => setTab(n.id)} className={`flex flex-col items-center text-[10px] gap-0.5 ${tab===n.id?"text-[#1463b1]":"text-neutral-500"}`}>
-              <n.icon className="size-5" />{n.label}
-            </button>
-          ))}
-        </div>
-
         {/* Main */}
-        <main className="flex-1 p-4 md:p-6 pb-20">
+        <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6">
+
           {tab === "overview" && <Overview onJump={setTab} />}
           {tab === "accounts" && <Accounts />}
           {tab === "transfers" && <Placeholder title="Transfers" subtitle="Send money via NEFT, RTGS, IMPS or UPI" icon={ArrowLeftRight} items={["Within MahaBank", "Other Bank (NEFT/RTGS)", "IMPS Instant", "UPI Pay", "International Wire"]} />}
@@ -352,7 +377,8 @@ function Accounts() {
               </button>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm table-fixed">
               <colgroup>
                 <col className="w-[11%]" />
@@ -393,6 +419,33 @@ function Accounts() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-neutral-100">
+            {results.length === 0 && <div className="p-6 text-center text-sm text-neutral-500">No transactions in selected period</div>}
+            {results.map(t => (
+              <div key={t.id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs bg-[#1463b1]/10 text-[#1463b1] px-2 py-0.5 rounded shrink-0">{t.mode}</span>
+                      <span className="text-xs text-neutral-500">{new Date(t.date).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" })}</span>
+                    </div>
+                    <div className="mt-1.5 text-sm font-medium text-neutral-800 break-words">{t.description}</div>
+                    {t.reference && <div className="text-[11px] text-neutral-500 mt-0.5 break-words">Ref: {t.reference}</div>}
+                  </div>
+                  <div className={`text-right shrink-0 font-semibold text-sm whitespace-nowrap ${t.type==="credit"?"text-emerald-600":"text-red-600"}`}>
+                    {t.type==="credit"?"+":"−"} {formatINR(t.amount)}
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-neutral-500">
+                  <span>Balance</span>
+                  <span className="font-semibold text-neutral-800 whitespace-nowrap">{formatINR(t.balance)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
         </div>
       )}
     </div>
