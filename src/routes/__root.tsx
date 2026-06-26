@@ -11,6 +11,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { PasswordGate } from "../components/PasswordGate";
+
 
 function NotFoundComponent() {
   return (
@@ -72,7 +74,9 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <PasswordGate>
+        <Outlet />
+      </PasswordGate>
     </QueryClientProvider>
   );
 }
