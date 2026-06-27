@@ -317,12 +317,13 @@ function Accounts() {
             <button onClick={() => fileRef.current?.click()} className="rounded-md border border-[#1463b1]/40 px-4 py-2 text-sm font-semibold text-[#1463b1] hover:bg-[#1463b1]/5 flex items-center gap-2">
               <Upload className="size-4" /> Upload Excel
             </button>
+            <div className="text-[10px] text-neutral-500 mt-1 text-right">Cols: Date, Particulars, Debit, Credit, Balance</div>
           </div>
         </div>
         {uploaded && (
-          <div className="mb-4 text-xs text-neutral-600 bg-[#1463b1]/5 border border-[#1463b1]/20 rounded px-3 py-2 flex items-center justify-between">
-            <span>Showing data from <strong>{uploadName}</strong> ({uploaded.length} transactions)</span>
-            <button onClick={() => { setUploaded(null); setUploadName(""); setResults(null); setShowStatement(false); }} className="text-[#1463b1] hover:underline">Clear</button>
+          <div className="mb-4 text-xs text-neutral-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2 flex items-center justify-between">
+            <span>✓ Loaded <strong>{uploaded.length} transactions</strong> from <strong>{uploadName}</strong></span>
+            <button onClick={() => { setUploaded(null); setUploadName(""); setResults(null); setShowStatement(false); }} className="text-[#1463b1] hover:underline font-semibold">Clear</button>
           </div>
         )}
 
