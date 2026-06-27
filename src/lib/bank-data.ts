@@ -25,6 +25,8 @@ export type Txn = {
   mode: string;
   reference?: string;
   channel?: string;
+  sourceColumns?: string[];
+  sourceRow?: Record<string, string>;
 };
 
 const MONTHLY_DESCS = [
@@ -93,98 +95,181 @@ export function downloadCSV(txns: Txn[], filename: string) {
 // =========== Excel Upload Parser ===========
 export async function parseExcelTransactions(file: File): Promise<Txn[]> {
   const data = await file.arrayBuffer();
-  const wb = XLSX.read(data, { type: "array", cellDates: true });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
+  const wb = XLSX.read(data, { type: "array", cellDates: true, WTF: false });
+  const sheetName = wb.SheetNames.find((name) => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: "", raw: true }) as any[][];
+    return rows.some((row) => row.some((cell) => String(cell ?? "").trim() !== ""));
+  });
+
+  if (!sheetName) return [];
+
+  const ws = wb.Sheets[sheetName];
+  const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true, blankrows: false });
+  const cleanRows = aoa.filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""));
+  if (!cleanRows.length) return [];
 
   const norm = (s: any) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  const HINTS = ["date", "particular", "description", "narration", "debit", "credit", "withdrawal", "deposit", "balance", "amount"];
+  const text = (v: any) => {
+    if (v instanceof Date) return v.toLocaleDateString("en-IN");
+    if (typeof v === "number") return Number.isInteger(v) ? String(v) : String(Number(v.toFixed(2)));
+    return String(v ?? "").trim();
+  };
+
+  const HINTS = [
+    "date", "txn", "transaction", "value", "particular", "description", "narration", "remarks",
+    "debit", "withdrawal", "withdraw", "dr", "credit", "deposit", "cr", "balance", "amount", "cheque", "reference",
+  ];
 
   let headerIdx = 0;
-  for (let i = 0; i < Math.min(aoa.length, 15); i++) {
-    const row = aoa[i] || [];
-    const hits = row.filter((c) => HINTS.some((h) => norm(c).includes(h))).length;
-    if (hits >= 2) { headerIdx = i; break; }
+  let bestScore = -1;
+  for (let i = 0; i < Math.min(cleanRows.length, 25); i++) {
+    const row = cleanRows[i] || [];
+    const normalized = row.map(norm);
+    const hints = normalized.filter((c) => HINTS.some((h) => c === h || c.includes(h))).length;
+    const filled = row.filter((c) => String(c ?? "").trim() !== "").length;
+    const score = hints * 3 + Math.min(filled, 8);
+    if (score > bestScore && filled >= 2) {
+      bestScore = score;
+      headerIdx = i;
+    }
   }
 
-  const headers = (aoa[headerIdx] || []).map((c) => String(c ?? ""));
-  const rows = aoa.slice(headerIdx + 1).filter((r) => r && r.some((c) => String(c ?? "").trim() !== ""));
+  let headers = (cleanRows[headerIdx] || []).map((c, i) => text(c) || `Column ${i + 1}`);
+  const seen = new Map<string, number>();
+  headers = headers.map((h, i) => {
+    const base = h || `Column ${i + 1}`;
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
+    return count ? `${base} ${count + 1}` : base;
+  });
+
+  const rows = cleanRows.slice(headerIdx + 1).filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""));
+  if (!rows.length) return [];
 
   const colIdx = (...keys: string[]) => {
+    const wanted = keys.map(norm);
     for (let i = 0; i < headers.length; i++) {
-      const nh = norm(headers[i]);
-      if (keys.some((k) => nh === norm(k) || nh.includes(norm(k)))) return i;
+      const h = norm(headers[i]);
+      if (!h) continue;
+      if (wanted.some((k) => h === k || (k.length > 2 && h.includes(k)))) return i;
     }
     return -1;
   };
 
-  const iDate = colIdx("date", "txndate", "transactiondate", "valuedate");
-  const iDesc = colIdx("particulars", "description", "narration", "details", "remarks");
-  const iDebit = colIdx("debit", "withdrawal", "dr");
-  const iCredit = colIdx("credit", "deposit", "cr");
-  const iAmount = colIdx("amount");
-  const iBal = colIdx("balance", "runningbalance", "closingbalance");
-  const iMode = colIdx("type", "mode", "txntype");
-  const iRef = colIdx("cheque", "reference", "ref", "chequeno", "refno");
-  const iChan = colIdx("channel");
+  const iDate = colIdx("date", "txndate", "transactiondate", "posteddate", "postingdate", "valuedate", "dateoftransaction");
+  const iDesc = colIdx("particulars", "description", "narration", "transactionremarks", "details", "remarks", "transactiondetails");
+  const iDebit = colIdx("debit", "withdrawal", "withdrawals", "withdrawalamt", "withdrawalamount", "debitamount", "dramount");
+  const iCredit = colIdx("credit", "deposit", "deposits", "depositamt", "depositamount", "creditamount", "cramount");
+  const iAmount = colIdx("amount", "transactionamount", "txnamount");
+  const iBal = colIdx("balance", "runningbalance", "closingbalance", "availablebalance");
+  const iMode = colIdx("type", "mode", "txntype", "transactiontype", "drcr");
+  const iRef = colIdx("cheque", "chequeno", "chequenumber", "reference", "referenceno", "refno", "utr", "rrn");
+  const iChan = colIdx("channel", "branch", "terminal", "source");
 
   const numVal = (v: any): number => {
     if (v === "" || v == null) return 0;
-    if (typeof v === "number") return v;
-    const s = String(v).replace(/[,₹$\s]/g, "").replace(/\((.+)\)/, "-$1");
+    if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+    const raw = String(v).trim();
+    if (!raw || raw === "-" || raw === "—") return 0;
+    const negative = /\bdr\b|debit|withdraw/i.test(raw) || /^-/.test(raw) || /^\(.+\)$/.test(raw);
+    let s = raw
+      .replace(/\((.+)\)/, "$1")
+      .replace(/[₹$€£,\s]/g, "")
+      .replace(/cr|dr|credit|debit|deposit|withdrawal|withdraw/gi, "")
+      .replace(/[–—]/g, "-");
+    if (/^\d+\.\d{3},\d{1,2}$/.test(s)) s = s.replace(".", "").replace(",", ".");
     const n = Number(s);
-    return isNaN(n) ? 0 : n;
+    return Number.isFinite(n) ? Math.abs(n) * (negative ? -1 : 1) : 0;
   };
 
-  const parseDate = (v: any): Date => {
-    if (v instanceof Date) return v;
-    if (typeof v === "number") {
-      const epoch = new Date(Date.UTC(1899, 11, 30));
-      return new Date(epoch.getTime() + v * 86400000);
-    }
-    if (typeof v === "string" && v.trim()) {
-      const s = v.trim();
-      const m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
-      if (m) {
-        const [, d, mo, y] = m;
+  const parseDate = (v: any, row: any[]): Date => {
+    const tryOne = (value: any): Date | null => {
+      if (value instanceof Date && !isNaN(+value)) return value;
+      if (typeof value === "number" && value > 25000 && value < 80000) {
+        const parsed = XLSX.SSF.parse_date_code(value);
+        if (parsed) return new Date(parsed.y, parsed.m - 1, parsed.d);
+      }
+      const s = String(value ?? "").trim();
+      if (!s) return null;
+      const numericSerial = Number(s);
+      if (Number.isFinite(numericSerial) && numericSerial > 25000 && numericSerial < 80000) {
+        const parsed = XLSX.SSF.parse_date_code(numericSerial);
+        if (parsed) return new Date(parsed.y, parsed.m - 1, parsed.d);
+      }
+      const short = s.split(/\s+/)[0];
+      const dm = short.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+      if (dm) {
+        const [, d, mo, y] = dm;
         const yr = Number(y) < 100 ? 2000 + Number(y) : Number(y);
         return new Date(yr, Number(mo) - 1, Number(d));
       }
+      const md = short.match(/^(\d{1,2})[-\s]([A-Za-z]{3,})[-\s](\d{2,4})$/);
+      if (md) {
+        const [, d, mon, y] = md;
+        const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+        const month = months.findIndex((m) => mon.toLowerCase().startsWith(m));
+        if (month >= 0) return new Date(Number(y) < 100 ? 2000 + Number(y) : Number(y), month, Number(d));
+      }
       const dt = new Date(s);
-      if (!isNaN(+dt)) return dt;
+      return isNaN(+dt) ? null : dt;
+    };
+
+    const direct = tryOne(v);
+    if (direct) return direct;
+    for (const cell of row.slice(0, 4)) {
+      const guessed = tryOne(cell);
+      if (guessed) return guessed;
     }
     return new Date();
   };
 
+  const fallbackDesc = (row: any[]) => row
+    .map((cell, idx) => ({ cell: text(cell), idx }))
+    .filter(({ cell, idx }) => cell && ![iDate, iDebit, iCredit, iAmount, iBal].includes(idx))
+    .map(({ cell }) => cell)
+    .slice(0, 3)
+    .join(" • ") || "Transaction";
+
   let runningBal = 0;
-  return rows.map((r, i) => {
-    const debit = iDebit >= 0 ? numVal(r[iDebit]) : 0;
-    const credit = iCredit >= 0 ? numVal(r[iCredit]) : 0;
-    let amount = 0;
+  return rows.map((row, i) => {
+    const raw: Record<string, string> = {};
+    headers.forEach((h, idx) => { raw[h] = text(row[idx]); });
+
+    const debitRaw = iDebit >= 0 ? numVal(row[iDebit]) : 0;
+    const creditRaw = iCredit >= 0 ? numVal(row[iCredit]) : 0;
+    const amountRaw = iAmount >= 0 ? numVal(row[iAmount]) : 0;
+    const modeCell = String((iMode >= 0 ? row[iMode] : "") ?? "");
+
     let type: "credit" | "debit" = "debit";
-    if (credit > 0 || debit > 0) {
-      amount = credit > 0 ? credit : debit;
-      type = credit > 0 ? "credit" : "debit";
-    } else if (iAmount >= 0) {
-      const a = numVal(r[iAmount]);
-      amount = Math.abs(a);
-      type = a >= 0 ? "credit" : "debit";
+    let amount = 0;
+    if (creditRaw > 0 || debitRaw > 0) {
+      amount = Math.abs(creditRaw > 0 ? creditRaw : debitRaw);
+      type = creditRaw > 0 ? "credit" : "debit";
+    } else if (amountRaw !== 0) {
+      const modeSaysDebit = /\bdr\b|debit|withdraw/i.test(modeCell);
+      const modeSaysCredit = /\bcr\b|credit|deposit/i.test(modeCell);
+      type = amountRaw < 0 || modeSaysDebit ? "debit" : modeSaysCredit ? "credit" : "credit";
+      amount = Math.abs(amountRaw);
     }
-    const balance = iBal >= 0 ? numVal(r[iBal]) : 0;
+
+    const balance = iBal >= 0 ? Math.abs(numVal(row[iBal])) : 0;
     runningBal = balance || (runningBal + (type === "credit" ? amount : -amount));
+    const date = parseDate(iDate >= 0 ? row[iDate] : "", row);
 
     return {
-      id: `UP-${i}`,
-      date: parseDate(iDate >= 0 ? r[iDate] : "").toISOString(),
-      description: String((iDesc >= 0 ? r[iDesc] : "") || "Transaction"),
+      id: `UP-${sheetName}-${i}-${date.getTime()}`,
+      date: date.toISOString(),
+      description: String((iDesc >= 0 ? text(row[iDesc]) : "") || fallbackDesc(row)),
       type,
       amount,
       balance: runningBal,
-      mode: String((iMode >= 0 ? r[iMode] : "") || (type === "credit" ? "Credit" : "Debit")),
-      reference: String((iRef >= 0 ? r[iRef] : "") || ""),
-      channel: String((iChan >= 0 ? r[iChan] : "") || ""),
+      mode: String(modeCell || (type === "credit" ? "Credit" : "Debit")),
+      reference: String((iRef >= 0 ? text(row[iRef]) : "") || ""),
+      channel: String((iChan >= 0 ? text(row[iChan]) : "") || ""),
+      sourceColumns: headers,
+      sourceRow: raw,
     } as Txn;
-  });
+  }).filter((txn) => txn.description || txn.amount || txn.balance || txn.sourceRow);
 }
 
 // =========== PDF Statement Download (replica of BoM format) ===========
