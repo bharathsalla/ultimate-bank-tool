@@ -246,12 +246,21 @@ function Accounts() {
     if (!file) return;
     try {
       const parsed = await parseExcelTransactions(file);
+      if (!parsed.length) {
+        alert("No transactions found in the Excel file. Please check the sheet has headers like Date, Particulars, Debit, Credit, Balance.");
+        return;
+      }
+      // Sort newest first
+      parsed.sort((a, b) => +new Date(b.date) - +new Date(a.date));
       setUploaded(parsed);
       setUploadName(file.name);
       setResults(parsed);
       setShowStatement(true);
     } catch (err) {
-      alert("Could not parse Excel file. Make sure it has Date, Particulars, Debit, Credit, Balance columns.");
+      console.error(err);
+      alert("Could not parse Excel file. Make sure it's a valid .xlsx/.xls/.csv with Date, Particulars, Debit, Credit, Balance columns.");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
