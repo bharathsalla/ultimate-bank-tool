@@ -390,13 +390,13 @@ function Accounts() {
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm table-fixed">
               <colgroup>
+                <col className="w-[10%]" />
+                <col className="w-[8%]" />
+                <col className="w-[26%]" />
+                <col className="w-[12%]" />
                 <col className="w-[11%]" />
-                <col className="w-[9%]" />
-                <col className="w-[22%]" />
+                <col className="w-[11%]" />
                 <col className="w-[13%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
                 <col className="w-[9%]" />
               </colgroup>
               <thead className="bg-[#1463b1]/10 text-xs uppercase tracking-wider text-neutral-700">
