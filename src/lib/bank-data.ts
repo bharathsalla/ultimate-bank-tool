@@ -369,7 +369,7 @@ export async function downloadStatementPDF(txns: Txn[], filename: string, opts?:
       statementHead,
     ],
     body: statementBody,
-    columnStyles: dynamicColumnStyles,
+    columnStyles: dynamicColumnStyles as any,
     didDrawPage: (data) => {
       const str = `Page ${doc.getNumberOfPages()}`;
       doc.setFontSize(9);
