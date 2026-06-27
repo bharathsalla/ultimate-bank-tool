@@ -95,52 +95,94 @@ export async function parseExcelTransactions(file: File): Promise<Txn[]> {
   const data = await file.arrayBuffer();
   const wb = XLSX.read(data, { type: "array", cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+  const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
 
-  const norm = (k: string) => k.toLowerCase().replace(/[^a-z]/g, "");
-  const getVal = (row: Record<string, any>, keys: string[]) => {
-    for (const key of Object.keys(row)) {
-      const nk = norm(key);
-      if (keys.some(k => nk === norm(k) || nk.includes(norm(k)))) {
-        return row[key];
-      }
+  const norm = (s: any) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const HINTS = ["date", "particular", "description", "narration", "debit", "credit", "withdrawal", "deposit", "balance", "amount"];
+
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(aoa.length, 15); i++) {
+    const row = aoa[i] || [];
+    const hits = row.filter((c) => HINTS.some((h) => norm(c).includes(h))).length;
+    if (hits >= 2) { headerIdx = i; break; }
+  }
+
+  const headers = (aoa[headerIdx] || []).map((c) => String(c ?? ""));
+  const rows = aoa.slice(headerIdx + 1).filter((r) => r && r.some((c) => String(c ?? "").trim() !== ""));
+
+  const colIdx = (...keys: string[]) => {
+    for (let i = 0; i < headers.length; i++) {
+      const nh = norm(headers[i]);
+      if (keys.some((k) => nh === norm(k) || nh.includes(norm(k)))) return i;
     }
-    return "";
+    return -1;
   };
+
+  const iDate = colIdx("date", "txndate", "transactiondate", "valuedate");
+  const iDesc = colIdx("particulars", "description", "narration", "details", "remarks");
+  const iDebit = colIdx("debit", "withdrawal", "dr");
+  const iCredit = colIdx("credit", "deposit", "cr");
+  const iAmount = colIdx("amount");
+  const iBal = colIdx("balance", "runningbalance", "closingbalance");
+  const iMode = colIdx("type", "mode", "txntype");
+  const iRef = colIdx("cheque", "reference", "ref", "chequeno", "refno");
+  const iChan = colIdx("channel");
+
   const numVal = (v: any): number => {
     if (v === "" || v == null) return 0;
     if (typeof v === "number") return v;
-    return Number(String(v).replace(/[,₹\s]/g, "")) || 0;
+    const s = String(v).replace(/[,₹$\s]/g, "").replace(/\((.+)\)/, "-$1");
+    const n = Number(s);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const parseDate = (v: any): Date => {
+    if (v instanceof Date) return v;
+    if (typeof v === "number") {
+      const epoch = new Date(Date.UTC(1899, 11, 30));
+      return new Date(epoch.getTime() + v * 86400000);
+    }
+    if (typeof v === "string" && v.trim()) {
+      const s = v.trim();
+      const m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+      if (m) {
+        const [, d, mo, y] = m;
+        const yr = Number(y) < 100 ? 2000 + Number(y) : Number(y);
+        return new Date(yr, Number(mo) - 1, Number(d));
+      }
+      const dt = new Date(s);
+      if (!isNaN(+dt)) return dt;
+    }
+    return new Date();
   };
 
   let runningBal = 0;
   return rows.map((r, i) => {
-    const rawDate = getVal(r, ["date"]);
-    let dt: Date;
-    if (rawDate instanceof Date) dt = rawDate;
-    else if (typeof rawDate === "string" && rawDate) {
-      const parts = rawDate.split(/[\/\-]/);
-      if (parts.length === 3) {
-        const [d, m, y] = parts.map(Number);
-        dt = new Date(y < 100 ? 2000 + y : y, m - 1, d);
-      } else dt = new Date(rawDate);
-    } else dt = new Date();
-
-    const debit = numVal(getVal(r, ["debit", "withdrawal"]));
-    const credit = numVal(getVal(r, ["credit", "deposit"]));
-    const balance = numVal(getVal(r, ["balance"]));
-    runningBal = balance || (runningBal + credit - debit);
+    const debit = iDebit >= 0 ? numVal(r[iDebit]) : 0;
+    const credit = iCredit >= 0 ? numVal(r[iCredit]) : 0;
+    let amount = 0;
+    let type: "credit" | "debit" = "debit";
+    if (credit > 0 || debit > 0) {
+      amount = credit > 0 ? credit : debit;
+      type = credit > 0 ? "credit" : "debit";
+    } else if (iAmount >= 0) {
+      const a = numVal(r[iAmount]);
+      amount = Math.abs(a);
+      type = a >= 0 ? "credit" : "debit";
+    }
+    const balance = iBal >= 0 ? numVal(r[iBal]) : 0;
+    runningBal = balance || (runningBal + (type === "credit" ? amount : -amount));
 
     return {
       id: `UP-${i}`,
-      date: dt.toISOString(),
-      description: String(getVal(r, ["particulars", "description", "narration"]) || "Transaction"),
-      type: credit > 0 ? "credit" : "debit",
-      amount: credit > 0 ? credit : debit,
+      date: parseDate(iDate >= 0 ? r[iDate] : "").toISOString(),
+      description: String((iDesc >= 0 ? r[iDesc] : "") || "Transaction"),
+      type,
+      amount,
       balance: runningBal,
-      mode: String(getVal(r, ["type", "mode"]) || "Txn"),
-      reference: String(getVal(r, ["cheque", "reference", "ref"]) || ""),
-      channel: String(getVal(r, ["channel"]) || ""),
+      mode: String((iMode >= 0 ? r[iMode] : "") || (type === "credit" ? "Credit" : "Debit")),
+      reference: String((iRef >= 0 ? r[iRef] : "") || ""),
+      channel: String((iChan >= 0 ? r[iChan] : "") || ""),
     } as Txn;
   });
 }
