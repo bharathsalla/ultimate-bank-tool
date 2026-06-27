@@ -417,7 +417,7 @@ function Accounts() {
                     <td className="p-3 break-words text-neutral-700">{new Date(t.date).toLocaleDateString("en-IN", { day:"2-digit", month:"2-digit", year:"numeric" })}</td>
                     <td className="p-3 break-words"><span className="text-xs bg-[#1463b1]/10 text-[#1463b1] px-2 py-0.5 rounded">{t.mode}</span></td>
                     <td className="p-3 break-words text-neutral-700">{t.description}</td>
-                    <td className="p-3 break-words text-neutral-700">{t.reference || "—"}</td>
+                    <td className="p-3 break-all text-neutral-700 text-xs">{t.reference || "—"}</td>
                     <td className="p-3 text-right text-red-600 font-medium whitespace-nowrap">{t.type==="debit" ? formatINR(t.amount) : "—"}</td>
                     <td className="p-3 text-right text-emerald-600 font-medium whitespace-nowrap">{t.type==="credit" ? formatINR(t.amount) : "—"}</td>
                     <td className="p-3 text-right font-semibold text-neutral-800 whitespace-nowrap">{formatINR(t.balance)}</td>
