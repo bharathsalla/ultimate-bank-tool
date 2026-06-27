@@ -81,6 +81,18 @@ export function generateTransactions(months = 6): Txn[] {
 }
 
 export function downloadCSV(txns: Txn[], filename: string) {
+  const uploadedColumns = txns.find((t) => t.sourceColumns?.length)?.sourceColumns;
+  if (uploadedColumns?.length) {
+    const safe = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = txns.map((txn) => uploadedColumns.map((column) => safe(txn.sourceRow?.[column] ?? "")).join(","));
+    const blob = new Blob([uploadedColumns.map(safe).join(",") + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+    return;
+  }
+
   const header = "Date,Type,Particulars,Reference,Debit,Credit,Balance,Channel\n";
   const rows = txns.map(t =>
     `${new Date(t.date).toLocaleDateString("en-IN")},${t.mode},"${t.description}",${t.reference ?? ""},${t.type === "debit" ? t.amount : ""},${t.type === "credit" ? t.amount : ""},${t.balance},${t.channel ?? ""}`
@@ -315,17 +327,13 @@ export async function downloadStatementPDF(txns: Txn[], filename: string, opts?:
 
   const sorted = [...txns].sort((a, b) => +new Date(a.date) - +new Date(b.date));
 
-  autoTable(doc, {
-    startY: (doc as any).lastAutoTable.finalY + 16,
-    margin: { left: margin, right: margin },
-    theme: "grid",
-    styles: { fontSize: 8, cellPadding: 3, textColor: 20, lineColor: [180, 200, 220], lineWidth: 0.5, overflow: "linebreak" },
-    headStyles: { fillColor: [219, 232, 244], textColor: 20, fontStyle: "bold", halign: "center" },
-    head: [
-      [{ content: `Statement for Account No ${ACCOUNT_NUMBER} ${periodLabel}.`, colSpan: 8, styles: { halign: "center", fontStyle: "bold" } }],
-      ["Date", "Type", "Particulars", "Cheque/Reference No", "Debit", "Credit", "Balance", "Channel"],
-    ],
-    body: sorted.map(t => [
+  const uploadedColumns = sorted.find((t) => t.sourceColumns?.length)?.sourceColumns;
+  const statementHead = uploadedColumns?.length
+    ? uploadedColumns
+    : ["Date", "Type", "Particulars", "Cheque/Reference No", "Debit", "Credit", "Balance", "Channel"];
+  const statementBody = uploadedColumns?.length
+    ? sorted.map((t) => uploadedColumns.map((column) => t.sourceRow?.[column] ?? ""))
+    : sorted.map(t => [
       new Date(t.date).toLocaleDateString("en-IN"),
       t.mode,
       t.description,
@@ -334,8 +342,11 @@ export async function downloadStatementPDF(txns: Txn[], filename: string, opts?:
       t.type === "credit" ? formatNum(t.amount) : "",
       formatNum(t.balance),
       t.channel ?? "",
-    ]),
-    columnStyles: {
+    ]);
+  const tableWidth = pageW - margin * 2;
+  const dynamicColumnStyles = uploadedColumns?.length
+    ? Object.fromEntries(uploadedColumns.map((_, index) => [index, { cellWidth: tableWidth / uploadedColumns.length }]))
+    : {
       0: { halign: "center", cellWidth: 55 },
       1: { halign: "center", cellWidth: 45 },
       2: { cellWidth: "auto" },
@@ -344,7 +355,21 @@ export async function downloadStatementPDF(txns: Txn[], filename: string, opts?:
       5: { halign: "right", cellWidth: 60 },
       6: { halign: "right", cellWidth: 65 },
       7: { halign: "center", cellWidth: 55 },
-    },
+    };
+
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 16,
+    margin: { left: margin, right: margin },
+    theme: "grid",
+    tableWidth,
+    styles: { fontSize: uploadedColumns && uploadedColumns.length > 8 ? 6 : 8, cellPadding: 3, textColor: 20, lineColor: [180, 200, 220], lineWidth: 0.5, overflow: "linebreak", valign: "top" },
+    headStyles: { fillColor: [219, 232, 244], textColor: 20, fontStyle: "bold", halign: "center" },
+    head: [
+      [{ content: `Statement for Account No ${ACCOUNT_NUMBER} ${periodLabel}.`, colSpan: statementHead.length, styles: { halign: "center", fontStyle: "bold" } }],
+      statementHead,
+    ],
+    body: statementBody,
+    columnStyles: dynamicColumnStyles,
     didDrawPage: (data) => {
       const str = `Page ${doc.getNumberOfPages()}`;
       doc.setFontSize(9);
