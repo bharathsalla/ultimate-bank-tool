@@ -376,7 +376,7 @@ export async function downloadStatementPDF(txns: Txn[], filename: string, opts?:
     margin: { left: margin, right: margin },
     theme: "grid",
     tableWidth,
-    styles: { fontSize: uploadedColumns && uploadedColumns.length > 8 ? 6 : 8, cellPadding: 3, textColor: 20, lineColor: [180, 200, 220], lineWidth: 0.5, overflow: "linebreak", valign: "top" },
+    styles: { fontSize: uploadedColumns && uploadedColumns.length > 8 ? 6 : 7.5, cellPadding: { top: 1.5, right: 2, bottom: 1.5, left: 2 }, minCellHeight: 0, textColor: 20, lineColor: [180, 200, 220], lineWidth: 0.4, overflow: "linebreak", valign: "middle" },
     headStyles: { fillColor: [219, 232, 244], textColor: 20, fontStyle: "bold", halign: "center" },
     head: [
       [{ content: `Statement for Account No ${ACCOUNT_NUMBER} ${periodLabel}.`, colSpan: statementHead.length, styles: { halign: "center", fontStyle: "bold" } }],
