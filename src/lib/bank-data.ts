@@ -167,7 +167,9 @@ export async function parseExcelTransactions(file: File): Promise<Txn[]> {
   });
 
 
-  const rows = cleanRows.slice(headerIdx + 1).filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""));
+  const rows = cleanRows.slice(headerIdx + 1)
+    .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""))
+    .map((row) => keepIdx.map((c) => row[c]));
   if (!rows.length) return [];
 
   const colIdx = (...keys: string[]) => {
