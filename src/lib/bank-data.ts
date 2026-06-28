@@ -427,6 +427,3 @@ export async function downloadStatementPDF(txns: Txn[], filename: string, opts?:
 
   doc.save(filename);
 }
-
-  doc.save(filename);
-}
