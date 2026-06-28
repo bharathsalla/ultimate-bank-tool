@@ -146,14 +146,26 @@ export async function parseExcelTransactions(file: File): Promise<Txn[]> {
     }
   }
 
-  let headers = (cleanRows[headerIdx] || []).map((c, i) => text(c) || `Column ${i + 1}`);
+  let headers = (cleanRows[headerIdx] || []).map((c) => text(c));
+  // Determine which columns actually contain data (non-empty header OR any non-empty value in body)
+  const bodyRowsAll = cleanRows.slice(headerIdx + 1);
+  const keepIdx: number[] = [];
+  const maxCols = Math.max(headers.length, ...bodyRowsAll.map((r) => r.length));
+  for (let c = 0; c < maxCols; c++) {
+    const headerHas = (headers[c] ?? "").trim() !== "";
+    const bodyHas = bodyRowsAll.some((r) => String(r[c] ?? "").trim() !== "");
+    if (headerHas && bodyHas) keepIdx.push(c);
+  }
+  if (!keepIdx.length) return [];
+
   const seen = new Map<string, number>();
-  headers = headers.map((h, i) => {
-    const base = h || `Column ${i + 1}`;
+  headers = keepIdx.map((c) => {
+    const base = (headers[c] || "").trim() || `Column ${c + 1}`;
     const count = seen.get(base) ?? 0;
     seen.set(base, count + 1);
     return count ? `${base} ${count + 1}` : base;
   });
+
 
   const rows = cleanRows.slice(headerIdx + 1).filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""));
   if (!rows.length) return [];
