@@ -146,16 +146,30 @@ export async function parseExcelTransactions(file: File): Promise<Txn[]> {
     }
   }
 
-  let headers = (cleanRows[headerIdx] || []).map((c, i) => text(c) || `Column ${i + 1}`);
+  let headers = (cleanRows[headerIdx] || []).map((c) => text(c));
+  // Determine which columns actually contain data (non-empty header OR any non-empty value in body)
+  const bodyRowsAll = cleanRows.slice(headerIdx + 1);
+  const keepIdx: number[] = [];
+  const maxCols = Math.max(headers.length, ...bodyRowsAll.map((r) => r.length));
+  for (let c = 0; c < maxCols; c++) {
+    const headerHas = (headers[c] ?? "").trim() !== "";
+    const bodyHas = bodyRowsAll.some((r) => String(r[c] ?? "").trim() !== "");
+    if (headerHas && bodyHas) keepIdx.push(c);
+  }
+  if (!keepIdx.length) return [];
+
   const seen = new Map<string, number>();
-  headers = headers.map((h, i) => {
-    const base = h || `Column ${i + 1}`;
+  headers = keepIdx.map((c) => {
+    const base = (headers[c] || "").trim() || `Column ${c + 1}`;
     const count = seen.get(base) ?? 0;
     seen.set(base, count + 1);
     return count ? `${base} ${count + 1}` : base;
   });
 
-  const rows = cleanRows.slice(headerIdx + 1).filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""));
+
+  const rows = cleanRows.slice(headerIdx + 1)
+    .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""))
+    .map((row) => keepIdx.map((c) => row[c]));
   if (!rows.length) return [];
 
   const colIdx = (...keys: string[]) => {
@@ -362,7 +376,7 @@ export async function downloadStatementPDF(txns: Txn[], filename: string, opts?:
     margin: { left: margin, right: margin },
     theme: "grid",
     tableWidth,
-    styles: { fontSize: uploadedColumns && uploadedColumns.length > 8 ? 6 : 8, cellPadding: 3, textColor: 20, lineColor: [180, 200, 220], lineWidth: 0.5, overflow: "linebreak", valign: "top" },
+    styles: { fontSize: uploadedColumns && uploadedColumns.length > 8 ? 6 : 7.5, cellPadding: { top: 1.5, right: 2, bottom: 1.5, left: 2 }, minCellHeight: 0, textColor: 20, lineColor: [180, 200, 220], lineWidth: 0.4, overflow: "linebreak", valign: "middle" },
     headStyles: { fillColor: [219, 232, 244], textColor: 20, fontStyle: "bold", halign: "center" },
     head: [
       [{ content: `Statement for Account No ${ACCOUNT_NUMBER} ${periodLabel}.`, colSpan: statementHead.length, styles: { halign: "center", fontStyle: "bold" } }],
