@@ -300,12 +300,11 @@ export async function parseExcelTransactions(file: File): Promise<Txn[]> {
 
 // =========== PDF Statement Download (replica of BoM format) ===========
 export async function downloadStatementPDF(txns: Txn[], filename: string, opts?: { from?: string; to?: string }) {
-  const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+  const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const margin = 20;
+  const margin = 28;
 
-  // Load logo
   const img = await new Promise<HTMLImageElement>((res, rej) => {
     const i = new Image();
     i.crossOrigin = "anonymous";
@@ -315,24 +314,21 @@ export async function downloadStatementPDF(txns: Txn[], filename: string, opts?:
   }).catch(() => null);
 
   if (img) {
-    const w = 120, h = (img.height / img.width) * w;
-    doc.addImage(img, "PNG", (pageW - w) / 2, 10, w, h);
+    const w = 150, h = (img.height / img.width) * w;
+    doc.addImage(img, "PNG", (pageW - w) / 2, 14, w, h);
   }
 
-  let y = 50;
-
-  // Customer + Branch details — two-column table (compact)
   autoTable(doc, {
-    startY: y,
+    startY: 60,
     margin: { left: margin, right: margin },
     theme: "grid",
-    styles: { fontSize: 7, cellPadding: 2.5, textColor: 20, lineColor: [180, 200, 220], lineWidth: 0.3 },
+    styles: { fontSize: 7.5, cellPadding: 3, textColor: 20, lineColor: [180, 200, 220], lineWidth: 0.4 },
     head: [["Customer Details", "Branch & Account Details"]],
-    headStyles: { fillColor: [219, 232, 244], textColor: 20, fontStyle: "bold", halign: "center", fontSize: 7.5 },
+    headStyles: { fillColor: [219, 232, 244], textColor: 20, fontStyle: "bold", halign: "center", fontSize: 8 },
     columnStyles: { 0: { cellWidth: (pageW - margin * 2) / 2 }, 1: { cellWidth: (pageW - margin * 2) / 2 } },
     body: [[
-      `${ACCOUNT_HOLDER} | KHATA NO 238/244, F BLOCK SARASWATI ENCLAVE, KADIPUR INDUSTRIAL AREA, HYDERABAD - 500001, Telangana, India\nMobile : 919876543210 | Email : salla.bharath@example.com | DOB : 12/05/1990 | PAN : ABCDE1234F | Statement Date : ${new Date().toLocaleDateString("en-IN")}`,
-      `Branch No : 01234 | IFSC : ${IFSC} | ${BRANCH}, Bldg No.12, Banjara Hills, Road No 5, Hyderabad - 500034\nGSTIN : 36AACCB0774B2Z7 | A/c No : ${ACCOUNT_NUMBER} | Type : Savings-Premium | Balance : ${formatNum(ACCOUNT_BALANCE)}`,
+      `${ACCOUNT_HOLDER}\nKHATA NO 238/244\nF BLOCK SARASWATI ENCLAVE\nKADIPUR INDUSTRIAL AREA\nHYDERABAD - 500001\nTelangana, India\nMobile : 919876543210\nEmail : salla.bharath@example.com\nDate of Birth : 12/05/1990\nPAN/TAN : ABCDE1234F\n\nStatement Date : ${new Date().toLocaleDateString("en-IN")}`,
+      `Branch No : 01234\nBranch IFSC : ${IFSC}\nBranch Name : ${BRANCH}\nBldg No.12, Banjara Hills,\nRoad No 5, Hyderabad - 500034\nBranch GSTIN : 36AACCB0774B2Z7\nAccount No : ${ACCOUNT_NUMBER}\nAccount Type : Savings-Premium\nTotal Balance : ${formatNum(ACCOUNT_BALANCE)}\nClear Balance : ${formatNum(ACCOUNT_BALANCE)}\nPrimary GSTIN: NA`,
     ]],
   });
 
@@ -358,34 +354,74 @@ export async function downloadStatementPDF(txns: Txn[], filename: string, opts?:
       formatNum(t.balance),
       t.channel ?? "",
     ]);
+
   const tableWidth = pageW - margin * 2;
   const colCount = statementHead.length;
-  const bodyFont = colCount > 10 ? 5.5 : colCount > 8 ? 6 : 7;
+
+  // Heuristic: detect "particulars/description" column to give it most of the width
+  const descIdx = statementHead.findIndex((h) =>
+    /particular|descrip|narration|remark|detail/i.test(String(h)),
+  );
+
+  // Build column widths: fixed small widths for common short cols, descIdx absorbs the rest
+  const norm = (s: string) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const widthFor = (h: string): number | null => {
+    const n = norm(h);
+    if (/date/.test(n)) return 46;
+    if (n === "type" || /drcr|mode/.test(n)) return 32;
+    if (/cheque|refno|referenceno|reference|utr|rrn/.test(n)) return 70;
+    if (/debit|withdraw/.test(n)) return 50;
+    if (/credit|deposit/.test(n)) return 50;
+    if (/balance/.test(n)) return 60;
+    if (/channel|branch|terminal/.test(n)) return 50;
+    return null;
+  };
+
+  const fixedWidths = statementHead.map((h, i) => (i === descIdx ? null : widthFor(String(h))));
+  const usedFixed = fixedWidths.reduce<number>((s, w) => s + (w ?? 0), 0);
+  const unknownCols = fixedWidths.filter((w, i) => w == null && i !== descIdx).length;
+  const remaining = Math.max(tableWidth - usedFixed, 120);
+  const descWidth = descIdx >= 0 ? Math.max(remaining - unknownCols * 60, 140) : 0;
+  const unknownWidth = unknownCols > 0 ? Math.max((remaining - descWidth) / unknownCols, 40) : 0;
+
+  const columnStyles: Record<number, any> = {};
+  statementHead.forEach((h, i) => {
+    const n = norm(String(h));
+    const isNum = /debit|credit|balance|withdraw|deposit|amount/.test(n);
+    const isDate = /date/.test(n);
+    const w = i === descIdx ? descWidth : fixedWidths[i] ?? unknownWidth;
+    columnStyles[i] = {
+      cellWidth: w,
+      halign: isNum ? "right" : isDate ? "center" : "left",
+      overflow: isNum || isDate ? "ellipsize" : "linebreak",
+    };
+  });
 
   autoTable(doc, {
-    startY: (doc as any).lastAutoTable.finalY + 6,
-    margin: { left: margin, right: margin, top: 10, bottom: 18 },
+    startY: (doc as any).lastAutoTable.finalY + 10,
+    margin: { left: margin, right: margin, top: 14, bottom: 22 },
     theme: "grid",
     tableWidth,
     styles: {
-      fontSize: bodyFont,
-      cellPadding: { top: 0.8, right: 1.5, bottom: 0.8, left: 1.5 },
+      fontSize: 6.5,
+      cellPadding: { top: 1.2, right: 2, bottom: 1.2, left: 2 },
       minCellHeight: 0,
       textColor: 20,
       lineColor: [180, 200, 220],
       lineWidth: 0.25,
       overflow: "linebreak",
-      valign: "top",
+      valign: "middle",
     },
-    headStyles: { fillColor: [219, 232, 244], textColor: 20, fontStyle: "bold", halign: "center", fontSize: bodyFont + 0.5, cellPadding: 1.5 },
+    headStyles: { fillColor: [219, 232, 244], textColor: 20, fontStyle: "bold", halign: "center", fontSize: 7, cellPadding: 2 },
     head: [
-      [{ content: `Statement for Account No ${ACCOUNT_NUMBER} ${periodLabel}.`, colSpan: colCount, styles: { halign: "center", fontStyle: "bold", fontSize: 8 } }],
+      [{ content: `Statement for Account No ${ACCOUNT_NUMBER} ${periodLabel}.`, colSpan: colCount, styles: { halign: "center", fontStyle: "bold", fontSize: 8.5 } }],
       statementHead,
     ],
     body: statementBody,
+    columnStyles,
     didDrawPage: () => {
       doc.setFontSize(7);
-      doc.text(`Page ${doc.getNumberOfPages()}`, pageW / 2, pageH - 8, { align: "center" });
+      doc.text(`Page ${doc.getNumberOfPages()}`, pageW / 2, pageH - 10, { align: "center" });
     },
   });
 
