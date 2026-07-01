@@ -105,16 +105,28 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
+      <div className="hidden border-b bg-primary text-primary-foreground md:block">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 py-1.5 text-[11px] sm:px-5 lg:px-8">
+          <div className="flex items-center gap-4 opacity-90">
+            <span className="flex items-center gap-1.5"><ShieldCheck className="size-3" /> Secure Session</span>
+            <span className="hidden lg:inline">Last login: Today, 09:42 AM IST</span>
+            <span className="hidden lg:inline">Session expires in 09:58</span>
+          </div>
+          <div className="flex items-center gap-4 opacity-90">
+            <span>IFSC {IFSC}</span>
+            <span>Toll-free: 1800-233-4526</span>
+          </div>
+        </div>
+      </div>
       <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur">
         <div className="mx-auto grid w-full max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 sm:px-5 lg:px-8">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-3">
             <Button variant="ghost" size="icon" className="shrink-0 md:hidden" onClick={() => setDrawerOpen(true)} aria-label="Open menu">
               <Menu />
             </Button>
-            <img src={bomLogo} alt="Bank of Maharashtra" className="h-8 w-auto shrink-0 sm:h-10" />
-            <div className="min-w-0">
-              <p className="truncate font-display text-sm font-bold text-primary sm:text-lg">Bank of Maharashtra</p>
-              <p className="hidden text-xs text-muted-foreground sm:block">Secure Net Banking</p>
+            <img src={bomLogo} alt="Bank of Maharashtra" className="h-9 w-auto shrink-0 sm:h-11" />
+            <div className="flex min-w-0 items-center gap-2 border-l pl-3">
+              <span className="truncate text-sm font-semibold uppercase tracking-wide text-primary sm:text-base">Net Banking</span>
             </div>
           </div>
 
@@ -140,6 +152,7 @@ function Dashboard() {
           </div>
         </div>
       </header>
+
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent side="left" className="w-80 max-w-[88vw] p-0">
